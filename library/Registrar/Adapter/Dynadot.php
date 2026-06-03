@@ -136,7 +136,7 @@ final class Registrar_Adapter_Dynadot extends Registrar_AdapterAbstract
 
         if ($response->code === 200) {
             if (strtolower($response->data->premium) === 'yes') {
-                throw new Registrar_Exception('Premium domains cannot be registered.');
+                throw new Registrar_Exception('Premium domains cannot be transferred.');
             }
 
             if (strtolower($response->data->available) === 'no') {
@@ -496,7 +496,6 @@ final class Registrar_Adapter_Dynadot extends Registrar_AdapterAbstract
 
         $requestId = $this->_generateRequestId();
         $headers = $this->_addHttpHeaders($requestId);
-        $headers['X-Signature'] = $this->_sign($requestId, $this->_getUrlPath($url), $params);
 
         try {
             switch ($method) {
@@ -505,6 +504,7 @@ final class Registrar_Adapter_Dynadot extends Registrar_AdapterAbstract
                     if (!empty($params)) {
                         $url .= '?' . $this->_buildParams($params);
                     }
+                    $headers['X-Signature'] = $this->_sign($requestId, $this->_getUrlPath($url), []);
                     $response = $client->request($method, $url, [
                         'headers' => $headers,
                     ]);
@@ -512,6 +512,7 @@ final class Registrar_Adapter_Dynadot extends Registrar_AdapterAbstract
                     break;
                 case 'POST':
                 case 'PUT':
+                    $headers['X-Signature'] = $this->_sign($requestId, $this->_getUrlPath($url), $params);
                     $response = $client->request($method, $url, [
                         'body' => json_encode($params),
                         'headers' => $headers,
@@ -519,14 +520,13 @@ final class Registrar_Adapter_Dynadot extends Registrar_AdapterAbstract
 
                     break;
                 default:
-                    $e = new Registrar_Exception("HttpClientException: Unknown method ({$method})");
-                    $this->getLog()->err($e->getMessage());
+                    $e = new Registrar_Exception("Unknown method ({$method})");
 
                     throw $e;
             }
         } catch (HttpExceptionInterface $error) {
             $e = new Registrar_Exception("HttpClientException: {$error->getMessage()}.");
-            $this->getLog()->err($e->getMessage());
+            $this->getLog()->error($e->getMessage());
 
             throw $e;
         }
@@ -663,12 +663,12 @@ final class Registrar_Adapter_Dynadot extends Registrar_AdapterAbstract
     /**
      * Obtain the url path section of the full URL.
      *
-     * Example: http://localhost/api/endpoint?arg=1
-     * Return: /api/endpoint
+     * Example: http://localhost/api/endpoint
+     * Return: /api/endpoint?arg=1
      *
      * @param string $url full URL string
      *
-     * @return string the path
+     * @return string the path including any params
      *
      * @internal
      */
@@ -676,7 +676,12 @@ final class Registrar_Adapter_Dynadot extends Registrar_AdapterAbstract
     {
         $params = parse_url($url);
 
-        return $params['path'];
+        $output = $params['path'];
+        if (!empty($params['query'])) {
+            $output .= '?' . $params['query'];
+        }
+
+        return $output;
     }
 
     /**
@@ -735,7 +740,7 @@ final class Registrar_Adapter_Dynadot extends Registrar_AdapterAbstract
             $this->_getApiKey(),
             $path,
             $requestId,
-            json_encode($params),
+            !empty($params) ? json_encode($params, JSON_UNESCAPED_SLASHES) : '',
         ]);
 
         return base64_encode(hash_hmac('sha256', $stringToSign, $this->_getApiSecret()));
