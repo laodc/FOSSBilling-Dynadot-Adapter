@@ -743,7 +743,7 @@ final class Registrar_Adapter_Dynadot extends Registrar_AdapterAbstract
             !empty($params) ? json_encode($params, JSON_UNESCAPED_SLASHES) : '',
         ]);
 
-        return base64_encode(hash_hmac('sha256', $stringToSign, $this->_getApiSecret()));
+        return base64_encode(hash_hmac('sha256', $stringToSign, $this->_getApiSecret(),true));
     }
 
     /**
